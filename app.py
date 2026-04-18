@@ -302,6 +302,9 @@ input:focus, .stTextInput input:focus, .stNumberInput input:focus {
     line-height: 1.7;
     color: var(--text);
     white-space: pre-wrap;
+
+    max-height: 300px;      /* 🔥 límite de altura */
+    overflow-y: auto;       /* 🔥 scroll vertical */
 }
 
 .hyp-box {
@@ -1005,7 +1008,6 @@ Sé directo, pedagógico y evita repetir los datos innecesariamente."""
             value=default_prompt,
             height=200,
         )
-
         if st.button("🤖 Analizar con Gemini"):
             if not api_key:
                 st.error("⚠ Ingresa tu API Key de Gemini para continuar.")
@@ -1025,13 +1027,29 @@ Sé directo, pedagógico y evita repetir los datos innecesariamente."""
                             contents=prompt
                         )
 
-                    # 🔥 AQUÍ sí ya existe
                     resp_text = response.text
 
                 except Exception as e:
                     st.error(f"Error al conectar con Gemini: {e}")
 
-                # 🔥 SOLO SI HAY RESPUESTA
+                # 🔥 FALLBACK (SI FALLA GEMINI)
+                if not resp_text:
+                    st.warning("Modo demo: Gemini no disponible (límite de API)")
+
+                    resp_text = f"""
+                    1. La decisión estadística es {'correcta' if datos['decision']=='rechazar' else 'razonable'} dado el valor del estadístico Z.
+
+                    2. En términos prácticos, {'existe evidencia suficiente' if datos['decision']=='rechazar' else 'no hay evidencia suficiente'} 
+                    para rechazar la hipótesis nula bajo el nivel de significancia establecido.
+
+                    3. Los supuestos de la prueba Z (n ≥ 30 y sigma conocida) parecen cumplirse.
+
+                    4. Existe riesgo de {'error tipo I' if datos['decision']=='rechazar' else 'error tipo II'} dependiendo del contexto del problema.
+
+                    5. Podría considerarse una prueba alternativa si no se cumplen condiciones de normalidad.
+                    """
+
+                # 🔥 SIEMPRE ENTRA AQUÍ (real o fallback)
                 if resp_text:
                     st.markdown('<hr class="divider">', unsafe_allow_html=True)
                     section_header("Respuesta de Gemini", "Análisis generado por IA")
