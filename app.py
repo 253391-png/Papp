@@ -22,7 +22,7 @@ from scipy.stats import norm, shapiro, skew, kurtosis
 # shapiro  → prueba de Shapiro-Wilk para verificar normalidad
 # skew     → coeficiente de asimetría (sesgo) de la distribución
 # kurtosis → medida del apuntalamiento / colas de la distribución
-import google.generativeai as genai  # SDK de Google Gemini para el módulo de IA
+from google import genai
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -467,14 +467,24 @@ with tabs[0]:
 # TAB 1 — VISUALIZACIÓN DE DISTRIBUCIONES
 # ══════════════════════════════════════════════════════════════════════════════
 with tabs[1]:
-    section_header("Visualización de distribuciones", "Histograma · KDE · Boxplot · Q-Q Plot")
+    section_header("Visualización de distribuciones", "Histograma · KDE · Boxplot")
 
     if "data" not in st.session_state:
         st.info("⟵ Carga datos en la pestaña anterior para continuar.")
     else:
         df = st.session_state["data"]
-        columna = st.selectbox("Variable a analizar", df.columns, key="vis_col")
-        data = df[columna].dropna()   # Eliminar valores nulos antes de calcular
+        columnas = df.select_dtypes(include=np.number).columns
+
+        if len(columnas) == 0:
+            st.error("No hay columnas numéricas")
+            st.stop()
+
+        columna = st.selectbox("Variable a analizar", columnas, key="vis_col")
+
+        data = pd.to_numeric(df[columna], errors="coerce").dropna()
+        if data.empty:
+            st.error("No hay datos numéricos válidos en esta columna")
+            st.stop()
 
         # ── ESTADÍSTICOS DESCRIPTIVOS ─────────────────────────────────────
         # Describen la forma, centro y dispersión de la distribución
@@ -578,44 +588,6 @@ with tabs[1]:
 
         col3, col4 = st.columns(2, gap="medium")
 
-        # ── GRÁFICA 3: Q-Q Plot ───────────────────────────────────────────
-        # Compara cuantiles empíricos de los datos vs cuantiles teóricos normales
-        # Interpretación:
-        #   Puntos sobre la línea → datos normales
-        #   Curva hacia arriba/abajo en los extremos → colas más pesadas/ligeras
-        #   Desviación sistemática → no normalidad
-        with col3:
-            fig3, ax3 = plt.subplots(figsize=(5.5, 3.6))
-            from scipy.stats import probplot
-            # probplot retorna cuantiles teóricos (osm) y muestrales (osr)
-            (osm, osr), (slope, intercept, r) = probplot(data, dist="norm")
-            ax3.scatter(osm, osr, color=ACCENT2, s=12, alpha=0.6, label="Datos")
-            # Línea de referencia: si los datos son perfectamente normales, los puntos caen aquí
-            ax3.plot(osm, slope*np.array(osm)+intercept, color=ACCENT, lw=1.5, label=f"Ref (R²={r**2:.3f})")
-            ax3.set_title("Q-Q Plot (Normal)")
-            ax3.set_xlabel("Cuantiles teóricos")
-            ax3.set_ylabel("Cuantiles muestrales")
-            ax3.legend(fontsize=8)
-            ax3.grid(True, alpha=0.3)
-            fig3.tight_layout()
-            fig_to_st(fig3)
-
-        # ── GRÁFICA 4: Violin Plot ────────────────────────────────────────
-        # Combina boxplot con KDE: el ancho del violín en cada punto refleja la densidad
-        # Permite ver la distribución completa, no solo el resumen del boxplot
-        with col4:
-            fig4, ax4 = plt.subplots(figsize=(5.5, 3.6))
-            vp = ax4.violinplot(data, vert=False, showmeans=True, showmedians=True)
-            for body in vp["bodies"]:
-                body.set_facecolor(ACCENT2)
-                body.set_alpha(0.45)
-            vp["cmeans"].set_color(ACCENT)    # Línea de la media
-            vp["cmedians"].set_color(ACCENT3) # Línea de la mediana
-            ax4.set_title("Violin Plot")
-            ax4.set_yticks([])
-            ax4.grid(True, alpha=0.3, axis="x")
-            fig4.tight_layout()
-            fig_to_st(fig4)
 
         # ── INTERPRETACIÓN AUTOMÁTICA ─────────────────────────────────────
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
@@ -713,9 +685,15 @@ with tabs[2]:
         st.info("⟵ Carga datos primero.")
     else:
         df    = st.session_state["data"]
-        col_z = st.selectbox("Variable", df.columns, key="z_col")
-        data  = df[col_z].dropna()
+        columnas = df.select_dtypes(include=np.number).columns
+
+        col_z = st.selectbox("Variable", columnas, key="z_col")
+
+        data = pd.to_numeric(df[col_z], errors="coerce").dropna()
         n     = len(data)
+        if data.empty:
+            st.error("No hay datos numéricos válidos en esta columna")
+            st.stop()
 
         # Verificar supuesto de tamaño mínimo de muestra
         if n < 30:
@@ -1022,7 +1000,6 @@ Responde de forma estructurada y clara:
 5. ¿Recomendarías alguna prueba alternativa?
 
 Sé directo, pedagógico y evita repetir los datos innecesariamente."""
-
         prompt = st.text_area(
             "Prompt enviado a Gemini (editable)",
             value=default_prompt,
@@ -1033,32 +1010,40 @@ Sé directo, pedagógico y evita repetir los datos innecesariamente."""
             if not api_key:
                 st.error("⚠ Ingresa tu API Key de Gemini para continuar.")
             else:
+                resp_text = None
+
                 try:
-                    # Configurar cliente de Gemini con la clave API
-                    genai.configure(api_key=api_key)
-                    # Usar el modelo gemini-1.5-flash (rápido y eficiente)
-                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    from google import genai
 
-                    # Llamada a la API — generate_content envía el prompt y espera respuesta
+                    # Crear cliente
+                    client = genai.Client(api_key=api_key)
+
+                    # Llamada a la API
                     with st.spinner("Consultando a Gemini..."):
-                        response = model.generate_content(prompt)
+                        response = client.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=prompt
+                        )
 
-                    resp_text = response.text   # Texto generado por Gemini
+                    # 🔥 AQUÍ sí ya existe
+                    resp_text = response.text
 
+                except Exception as e:
+                    st.error(f"Error al conectar con Gemini: {e}")
+
+                # 🔥 SOLO SI HAY RESPUESTA
+                if resp_text:
                     st.markdown('<hr class="divider">', unsafe_allow_html=True)
                     section_header("Respuesta de Gemini", "Análisis generado por IA")
                     st.markdown(f'<div class="ai-box">{resp_text}</div>', unsafe_allow_html=True)
 
-                    # ── COMPARACIÓN: IA vs DECISIÓN ESTADÍSTICA ───────────
-                    # Analiza el texto de Gemini para detectar si concuerda
-                    # con la decisión calculada matemáticamente por la app
+                    # ── COMPARACIÓN ──
                     st.markdown('<hr class="divider">', unsafe_allow_html=True)
                     section_header("Comparación · IA vs Decisión estadística")
 
                     decision_app = datos["decision"]
-                    resp_lower   = resp_text.lower()
+                    resp_lower = resp_text.lower()
 
-                    # Buscar palabras clave en la respuesta para determinar concordancia
                     coincide = (
                         ("rechazar" in resp_lower and "no rechazar" not in resp_lower and decision_app == "rechazar")
                         or ("no rechazar" in resp_lower and decision_app == "no rechazar")
@@ -1067,6 +1052,7 @@ Sé directo, pedagógico y evita repetir los datos innecesariamente."""
                     )
 
                     ic1, ic2 = st.columns(2, gap="large")
+
                     with ic1:
                         st.markdown(f"""
                         <div style="background:rgba(15,22,35,0.9);border:1px solid var(--border);
@@ -1094,17 +1080,11 @@ Sé directo, pedagógico y evita repetir los datos innecesariamente."""
                         </div>
                         """, unsafe_allow_html=True)
 
-                    # Reflexión crítica: invita al estudiante a comparar ambos análisis
-                    # Esto cumple con el requisito del profe de "comparar con decisión del estudiante"
                     st.markdown(f"""
                     <div style="background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.2);
                                 border-radius:10px;padding:16px 20px;margin-top:1rem;font-size:13px;
                                 line-height:1.7;color:var(--text)">
                         <strong style="color:var(--accent2)">Reflexión crítica:</strong><br>
-                        {'La IA respalda la decisión, lo que indica consistencia. Aun así, evalúa si los supuestos del modelo (normalidad, σ conocida) se cumplen en tu contexto real.' if coincide else 'Existe discrepancia. Puede deberse a la interpretación contextual de la IA, supuestos distintos o ambigüedad en el prompt. Compara ambos razonamientos y justifica tu decisión.'}
+                        {'La IA respalda la decisión, lo que indica consistencia.' if coincide else 'Existe discrepancia entre IA y análisis estadístico.'}
                     </div>
                     """, unsafe_allow_html=True)
-
-                except Exception as e:
-                    st.error(f"Error al conectar con Gemini: {str(e)}")
-                    st.info("Verifica que tu API Key sea válida y que tengas acceso a la API de Gemini.")
