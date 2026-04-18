@@ -982,27 +982,27 @@ with tabs[3]:
         # El prompt es editable para que el estudiante pueda experimentar.
         default_prompt = f"""Actúa como un experto en estadística inferencial explicando a un estudiante universitario.
 
-Se realizó una prueba Z con los siguientes resultados:
-- Variable analizada: {datos['columna']}
-- Media muestral (x̄) = {datos['media_muestral']:.4f}
-- Media hipotética H₀ (μ₀) = {datos['media_hipotetica']}
-- Tamaño de muestra (n) = {datos['n']}
-- Desviación estándar poblacional (σ) = {datos['sigma']}
-- Nivel de significancia (α) = {datos['alpha']}
+Se realizó una prueba Z con los siguientes parámetros:
+- Variable: {datos['columna']}
+- Media muestral (x̄): {datos['media_muestral']:.4f}
+- Media hipotética (μ₀): {datos['media_hipotetica']}
+- Tamaño de muestra (n): {datos['n']}
+- Desviación estándar poblacional (σ): {datos['sigma']}
+- Nivel de significancia (α): {datos['alpha']}
 - Tipo de prueba: {datos['tipo']}
-- Estadístico Z calculado = {datos['z']:.4f}
-- Valor crítico Z = {datos['z_critico']:.4f}
-- p-value = {datos['p_value']:.6f}
-- Decisión: {datos['decision']} H₀
+- Estadístico Z: {datos['z']:.4f}
+- p-value: {datos['p_value']:.6f}
 
-Responde de forma estructurada y clara:
-1. ¿La decisión estadística es correcta? Verifica Z y p-value.
-2. ¿Qué significa este resultado en términos prácticos?
+Responde de forma clara y estructurada:
+
+1. ¿Se debe rechazar o no la hipótesis nula? Justifica usando Z y p-value.
+2. Explica el resultado en términos prácticos.
 3. ¿Se cumplen los supuestos de la prueba Z?
-4. Riesgos de error Tipo I y Tipo II en este contexto.
-5. ¿Recomendarías alguna prueba alternativa?
+4. Riesgos de error Tipo I y Tipo II.
+5. ¿Recomendarías otra prueba en este caso?
 
-Sé directo, pedagógico y evita repetir los datos innecesariamente."""
+Sé claro, pedagógico y evita repetir los datos.
+"""
         prompt = st.text_area(
             "Prompt enviado a Gemini (editable)",
             value=default_prompt,
